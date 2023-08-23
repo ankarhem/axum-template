@@ -13,16 +13,16 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
 # Build our project
-RUN cargo build --release --bin unpkg
+RUN cargo build --release --bin PKG_NAME
 
 FROM debian:bullseye-slim AS runtime
 WORKDIR /app
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends openssl ca-certificates \
-    # Clean up
-    && apt-get autoremove -y \
-    && apt-get clean -y \
-    && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/unpkg unpkg
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  # Clean up
+  && apt-get autoremove -y \
+  && apt-get clean -y \
+  && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/PKG_NAME PKG_NAME
 COPY public public
-ENTRYPOINT ["./unpkg"]
+ENTRYPOINT ["./PKG_NAME"]
