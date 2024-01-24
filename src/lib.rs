@@ -7,9 +7,10 @@ pub mod telemetry;
 mod utils;
 
 use anyhow::Result;
+use axum::http::Method;
 use axum::{body::Body, http::Request, routing, Router};
 use once_cell::sync::Lazy;
-use reqwest::{Client, Method};
+use reqwest::Client;
 
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{Any, CorsLayer};
@@ -34,7 +35,7 @@ fn app() -> Router {
         .layer(
             CorsLayer::new()
                 // allow `GET` and `POST` when accessing the resource
-                .allow_methods([Method::GET])
+                .allow_methods([Method::GET, Method::POST])
                 // allow requests from any origin
                 .allow_origin(Any),
         )
@@ -65,13 +66,17 @@ fn app() -> Router {
         )
 }
 
-pub async fn run(listener: TcpListener) -> Result<()> {
-    let addr = listener.local_addr()?;
+pub async fn run(std_listener: TcpListener) -> Result<()> {
+    let addr = std_listener.local_addr()?;
+
+    std_listener.set_nonblocking(true)?;
+    let listener = tokio::net::TcpListener::from_std(std_listener)?;
 
     tracing::info!("Listening on {}", addr);
 
-    axum::Server::from_tcp(listener)?
-        .serve(app().into_make_service())
+    axum::serve(listener, app())
+        // axum::Server::from_tcp(listener)?
+        //     .serve(app().into_make_service())
         .with_graceful_shutdown(async {
             tokio::signal::ctrl_c()
                 .await
