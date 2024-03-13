@@ -6,12 +6,11 @@ mod prelude;
 pub mod telemetry;
 mod utils;
 
-use anyhow::Result;
 use axum::http::Method;
 use axum::{body::Body, http::Request, routing, Router};
+use error_stack::{Context, Result, ResultExt};
 use once_cell::sync::Lazy;
 use reqwest::Client;
-
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -23,14 +22,14 @@ pub struct AppState {
     client: reqwest::Client,
 }
 
-fn app() -> Router {
-    let reqwest_client = create_client().expect("To create reqwest client");
+fn app() -> Result<Router, InitializeAppError> {
+    let reqwest_client = create_client()?;
 
     let app_state = AppState {
         client: reqwest_client,
     };
 
-    Router::new()
+    let router = Router::new()
         .layer(CompressionLayer::new())
         .layer(
             CorsLayer::new()
@@ -63,18 +62,37 @@ fn app() -> Router {
         .route(
             "/__healthcheck",
             routing::get(handlers::healthcheck::handler),
-        )
+        );
+
+    Ok(router)
 }
 
-pub async fn run(std_listener: TcpListener) -> Result<()> {
-    let addr = std_listener.local_addr()?;
+#[derive(Debug)]
+pub struct InitializeAppError;
 
-    std_listener.set_nonblocking(true)?;
-    let listener = tokio::net::TcpListener::from_std(std_listener)?;
+impl std::fmt::Display for InitializeAppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Failed to initialize app")
+    }
+}
+
+impl Context for InitializeAppError {}
+
+pub async fn run(std_listener: TcpListener) -> Result<(), InitializeAppError> {
+    let addr = std_listener
+        .local_addr()
+        .change_context(InitializeAppError)?;
+
+    std_listener
+        .set_nonblocking(true)
+        .change_context(InitializeAppError)?;
+    let listener =
+        tokio::net::TcpListener::from_std(std_listener).change_context(InitializeAppError)?;
 
     tracing::info!("Listening on {}", addr);
 
-    axum::serve(listener, app())
+    let app = app()?;
+    axum::serve(listener, app)
         // axum::Server::from_tcp(listener)?
         //     .serve(app().into_make_service())
         .with_graceful_shutdown(async {
@@ -82,7 +100,8 @@ pub async fn run(std_listener: TcpListener) -> Result<()> {
                 .await
                 .expect("Failed to install CTRL+C signal handler");
         })
-        .await?;
+        .await
+        .change_context(InitializeAppError)?;
 
     Ok(())
 }
@@ -114,7 +133,7 @@ pub fn spawn_app() -> SocketAddr {
     addr
 }
 
-pub fn create_client() -> Result<Client, reqwest::Error> {
+fn create_client() -> Result<Client, InitializeAppError> {
     Client::builder()
         .default_headers({
             let mut headers = reqwest::header::HeaderMap::new();
@@ -125,4 +144,5 @@ pub fn create_client() -> Result<Client, reqwest::Error> {
         .pool_idle_timeout(Duration::from_secs(15))
         .pool_max_idle_per_host(10)
         .build()
+        .change_context(InitializeAppError)
 }
