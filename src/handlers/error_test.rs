@@ -29,7 +29,7 @@ pub async fn get(
         return Err(AppError::bad_request("Favorite number must be positive"));
     }
 
-    if name.first == "" || name.last == "" {
+    if name.first.is_empty() || name.last.is_empty() {
         return Err(AppError::bad_request(
             "First and last name must not be empty",
         ));
