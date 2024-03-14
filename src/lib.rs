@@ -6,16 +6,20 @@ mod prelude;
 pub mod telemetry;
 mod utils;
 
-use axum::http::Method;
+use axum::body::Bytes;
+use axum::extract::MatchedPath;
+use axum::http::{HeaderMap, Method};
+use axum::response::Response;
 use axum::{body::Body, http::Request, routing, Router};
 use error_stack::{Context, Result, ResultExt};
 use once_cell::sync::Lazy;
 use reqwest::Client;
+use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{self, TraceLayer};
 use tower_request_id::{RequestId, RequestIdLayer};
-use tracing::info_span;
+use tracing::{info_span, Level, Span};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -30,6 +34,7 @@ fn app() -> Result<Router, InitializeAppError> {
     };
 
     let router = Router::new()
+        .route("/error_test", routing::get(handlers::error_test::get))
         .layer(CompressionLayer::new())
         .layer(
             CorsLayer::new()
@@ -41,6 +46,12 @@ fn app() -> Result<Router, InitializeAppError> {
         .layer(
             // Let's create a tracing span for each request
             TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
+                // Log the matched route's path (with placeholders not filled in).
+                // Use request.uri() or OriginalUri if you want the real path.
+                let matched_path = request
+                    .extensions()
+                    .get::<MatchedPath>()
+                    .map(MatchedPath::as_str);
                 // We get the request id from the extensions
                 let request_id = request
                     .extensions()
@@ -52,17 +63,14 @@ fn app() -> Result<Router, InitializeAppError> {
                     "request",
                     id = %request_id,
                     method = %request.method(),
-                    uri = %request.uri(),
+                    path = ?matched_path,
                 )
             }),
         )
         .layer(RequestIdLayer)
         .with_state(app_state)
         // Omit these from the logs etc.
-        .route(
-            "/__healthcheck",
-            routing::get(handlers::healthcheck::handler),
-        );
+        .route("/__healthcheck", routing::get(handlers::healthcheck::get));
 
     Ok(router)
 }
