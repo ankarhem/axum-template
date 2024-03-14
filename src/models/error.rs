@@ -6,11 +6,6 @@ use serde::Serialize;
 
 use crate::prelude::Json;
 
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    message: String,
-}
-
 #[derive(Debug)]
 pub struct AppError {
     code: StatusCode,
@@ -55,20 +50,24 @@ impl AppError {
     }
 }
 
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        match self.message {
-            Some(message) => (self.code, Json(ErrorResponse { message })).into_response(),
-            None => self.code.into_response(),
-        }
-    }
-}
-
 // When implicitly converting with `?` log as an error
 // and convert to a 500 Internal Server Error
 impl<C> From<error_stack::Report<C>> for AppError {
     fn from(err: error_stack::Report<C>) -> Self {
         tracing::error!("{:?}", err);
         Self::server_error()
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    message: String,
+}
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        match self.message {
+            Some(message) => (self.code, Json(ErrorResponse { message })).into_response(),
+            None => self.code.into_response(),
+        }
     }
 }
