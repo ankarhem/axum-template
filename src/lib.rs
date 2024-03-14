@@ -2,6 +2,7 @@ use std::net::{SocketAddr, TcpListener};
 use std::time::Duration;
 
 mod handlers;
+mod models;
 mod prelude;
 pub mod telemetry;
 mod utils;
