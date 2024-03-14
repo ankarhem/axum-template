@@ -2,13 +2,15 @@ use std::net::{SocketAddr, TcpListener};
 use std::time::Duration;
 
 mod handlers;
+mod models;
 mod prelude;
 pub mod telemetry;
 mod utils;
 
-use anyhow::Result;
+use axum::extract::MatchedPath;
 use axum::http::Method;
 use axum::{body::Body, http::Request, routing, Router};
+use error_stack::{Context, Result, ResultExt};
 use once_cell::sync::Lazy;
 use reqwest::Client;
 
@@ -23,14 +25,15 @@ pub struct AppState {
     client: reqwest::Client,
 }
 
-fn app() -> Router {
-    let reqwest_client = create_client().expect("To create reqwest client");
+fn app() -> Result<Router, InitializeAppError> {
+    let reqwest_client = create_client()?;
 
     let app_state = AppState {
         client: reqwest_client,
     };
 
-    Router::new()
+    let router = Router::new()
+        .route("/error_test", routing::get(handlers::error_test::get))
         .layer(CompressionLayer::new())
         .layer(
             CorsLayer::new()
@@ -42,6 +45,12 @@ fn app() -> Router {
         .layer(
             // Let's create a tracing span for each request
             TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
+                // Log the matched route's path (with placeholders not filled in).
+                // Use request.uri() or OriginalUri if you want the real path.
+                let matched_path = request
+                    .extensions()
+                    .get::<MatchedPath>()
+                    .map(MatchedPath::as_str);
                 // We get the request id from the extensions
                 let request_id = request
                     .extensions()
@@ -53,28 +62,44 @@ fn app() -> Router {
                     "request",
                     id = %request_id,
                     method = %request.method(),
-                    uri = %request.uri(),
+                    path = ?matched_path,
                 )
             }),
         )
         .layer(RequestIdLayer)
         .with_state(app_state)
         // Omit these from the logs etc.
-        .route(
-            "/__healthcheck",
-            routing::get(handlers::healthcheck::handler),
-        )
+        .route("/__healthcheck", routing::get(handlers::healthcheck::get));
+
+    Ok(router)
 }
 
-pub async fn run(std_listener: TcpListener) -> Result<()> {
-    let addr = std_listener.local_addr()?;
+#[derive(Debug)]
+pub struct InitializeAppError;
 
-    std_listener.set_nonblocking(true)?;
-    let listener = tokio::net::TcpListener::from_std(std_listener)?;
+impl std::fmt::Display for InitializeAppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Failed to initialize app")
+    }
+}
+
+impl Context for InitializeAppError {}
+
+pub async fn run(std_listener: TcpListener) -> Result<(), InitializeAppError> {
+    let addr = std_listener
+        .local_addr()
+        .change_context(InitializeAppError)?;
+
+    std_listener
+        .set_nonblocking(true)
+        .change_context(InitializeAppError)?;
+    let listener =
+        tokio::net::TcpListener::from_std(std_listener).change_context(InitializeAppError)?;
 
     tracing::info!("Listening on {}", addr);
 
-    axum::serve(listener, app())
+    let app = app()?;
+    axum::serve(listener, app)
         // axum::Server::from_tcp(listener)?
         //     .serve(app().into_make_service())
         .with_graceful_shutdown(async {
@@ -82,7 +107,8 @@ pub async fn run(std_listener: TcpListener) -> Result<()> {
                 .await
                 .expect("Failed to install CTRL+C signal handler");
         })
-        .await?;
+        .await
+        .change_context(InitializeAppError)?;
 
     Ok(())
 }
@@ -114,7 +140,7 @@ pub fn spawn_app() -> SocketAddr {
     addr
 }
 
-pub fn create_client() -> Result<Client, reqwest::Error> {
+fn create_client() -> Result<Client, InitializeAppError> {
     Client::builder()
         .default_headers({
             let mut headers = reqwest::header::HeaderMap::new();
@@ -125,4 +151,5 @@ pub fn create_client() -> Result<Client, reqwest::Error> {
         .pool_idle_timeout(Duration::from_secs(15))
         .pool_max_idle_per_host(10)
         .build()
+        .change_context(InitializeAppError)
 }
