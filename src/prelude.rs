@@ -30,6 +30,13 @@ impl std::fmt::Display for AppError {
 }
 
 impl AppError {
+    pub fn new<T: Into<String>>(code: StatusCode, message: T) -> Self {
+        Self {
+            code,
+            message: Some(message.into()),
+        }
+    }
+
     pub fn bad_request<T: Into<String>>(message: T) -> Self {
         Self {
             code: StatusCode::BAD_REQUEST,

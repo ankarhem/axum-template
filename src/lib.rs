@@ -6,20 +6,18 @@ mod prelude;
 pub mod telemetry;
 mod utils;
 
-use axum::body::Bytes;
 use axum::extract::MatchedPath;
-use axum::http::{HeaderMap, Method};
-use axum::response::Response;
+use axum::http::Method;
 use axum::{body::Body, http::Request, routing, Router};
 use error_stack::{Context, Result, ResultExt};
 use once_cell::sync::Lazy;
 use reqwest::Client;
-use tower_http::classify::ServerErrorsFailureClass;
+
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::trace::{self, TraceLayer};
+use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
-use tracing::{info_span, Level, Span};
+use tracing::info_span;
 
 #[derive(Clone)]
 pub struct AppState {

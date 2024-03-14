@@ -1,8 +1,8 @@
-use axum::{extract::Query, response::IntoResponse};
+use axum::response::IntoResponse;
 use error_stack::{report, Context, Report};
 use serde::{Deserialize, Serialize};
 
-use crate::prelude::AppError;
+use crate::{prelude::AppError, utils::axum::extractors::AppQuery};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,7 +18,11 @@ pub struct Other {
 }
 
 #[tracing::instrument(name = "error_test")]
-pub async fn get(name: Query<Name>, other: Query<Other>) -> Result<impl IntoResponse, AppError> {
+#[axum::debug_handler]
+pub async fn get(
+    AppQuery(name): AppQuery<Name>,
+    AppQuery(other): AppQuery<Other>,
+) -> Result<impl IntoResponse, AppError> {
     let favorite_number = other.favorite_number;
 
     if favorite_number < 0 {
