@@ -20,7 +20,7 @@ use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
 use tracing::info_span;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AppState {
     client: reqwest::Client,
 }
@@ -33,6 +33,7 @@ fn app() -> Result<Router, InitializeAppError> {
     };
 
     let router = Router::new()
+        .route("/random_number", routing::get(handlers::random_number::get))
         .route("/error_test", routing::get(handlers::error_test::get))
         .layer(CompressionLayer::new())
         .layer(
