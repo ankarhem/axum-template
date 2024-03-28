@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use axum::extract::FromRef;
+
 use crate::{
     clients::{RandomNumberService, RandomNumberServiceClient},
     create_client,
@@ -25,5 +27,11 @@ impl AppState {
             random_number_service: service,
             ..self
         }
+    }
+}
+
+impl FromRef<AppState> for Arc<dyn RandomNumberService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.random_number_service.clone()
     }
 }

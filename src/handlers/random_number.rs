@@ -1,12 +1,16 @@
-use crate::{models::state::AppState, prelude::*};
+use std::sync::Arc;
+
+use crate::{clients::RandomNumberService, prelude::*};
 
 use axum::{extract::State, response::IntoResponse};
 use error_stack::Context;
 
-#[tracing::instrument(skip(state), name = "random_number")]
+#[tracing::instrument(skip(service), name = "random_number")]
 // #[axum::debug_handler]
-pub async fn get(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    let number = state.random_number_service.get_random_number().await?;
+pub async fn get(
+    State(service): State<Arc<dyn RandomNumberService>>,
+) -> Result<impl IntoResponse, AppError> {
+    let number = service.get_random_number().await?;
 
     tracing::info!("External number fetched: {}", number);
 
