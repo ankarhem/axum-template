@@ -7,18 +7,23 @@ use crate::{
 
 #[derive(Clone)]
 pub struct AppState {
-    client: reqwest::Client,
-    pub(crate) random_number_service: Arc<dyn RandomNumberService>,
+    pub random_number_service: Arc<dyn RandomNumberService>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         let client = create_client().unwrap();
         Self {
-            client: client.clone(),
-            random_number_service: Arc::new(RandomNumberServiceClient {
-                inner: client.clone(),
-            }),
+            random_number_service: Arc::new(RandomNumberServiceClient::new(client)),
+        }
+    }
+}
+
+impl AppState {
+    pub fn replace_random_number_service(self, service: Arc<dyn RandomNumberService>) -> Self {
+        Self {
+            random_number_service: service,
+            ..self
         }
     }
 }

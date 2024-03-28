@@ -10,13 +10,12 @@ path = "src/lib.rs"
 
 [dependencies]
 axum = { version = "0.7.4", features = ["macros"] }
-delegate = "0.12.0"
 error-stack = { version = "0.4.1", features = ["serde", "spantrace"] }
+mockall = "0.12.1"
 once_cell = "1.18.0"
 reqwest = { version = "0.12.2", features = ["json"] }
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.96"
-thiserror = "1.0.43"
 tokio = { version = "1.28.0", features = ["full"] }
 tower-http = { version = "0.5.1", features = [
   "trace",
