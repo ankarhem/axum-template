@@ -1,21 +1,12 @@
-use crate::{prelude::*, AppState};
+use crate::{models::state::AppState, prelude::*};
 
 use axum::{extract::State, response::IntoResponse};
-use error_stack::{report, Context, FutureExt, Report, ResultExt};
-use serde::{Deserialize, Serialize};
+use error_stack::Context;
 
 #[tracing::instrument(skip(state), name = "random_number")]
-#[axum::debug_handler]
+// #[axum::debug_handler]
 pub async fn get(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    let number = state
-      .client
-      .get("https://www.random.org/integers/?num=1&min=1&max=100&col=1&base=10&format=plain&rnd=new")
-      .send()
-      .await
-      .change_context(GetRandomNumberError)
-      .attach_printable("Failed to reach underlying service")?
-      .text().await.change_context(GetRandomNumberError).attach_printable("Response body could not be read")
-      .and_then(|text| text.trim().parse::<u16>().change_context(GetRandomNumberError).attach_printable(format!("could not parse \"{text}\"")))?;
+    let number = state.random_number_service.get_random_number().await?;
 
     tracing::info!("External number fetched: {}", number);
 

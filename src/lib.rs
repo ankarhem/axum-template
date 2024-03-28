@@ -1,6 +1,10 @@
-use std::net::{SocketAddr, TcpListener};
+use once_cell::sync::Lazy;
+use std::net::SocketAddr;
+
+use std::net::TcpListener;
 use std::time::Duration;
 
+pub mod clients;
 mod handlers;
 mod models;
 mod prelude;
@@ -11,7 +15,7 @@ use axum::extract::MatchedPath;
 use axum::http::Method;
 use axum::{body::Body, http::Request, routing, Router};
 use error_stack::{Context, Result, ResultExt};
-use once_cell::sync::Lazy;
+pub use models::state::AppState;
 use reqwest::Client;
 
 use tower_http::compression::CompressionLayer;
@@ -20,18 +24,7 @@ use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
 use tracing::info_span;
 
-#[derive(Debug, Clone)]
-pub struct AppState {
-    client: reqwest::Client,
-}
-
-fn app() -> Result<Router, InitializeAppError> {
-    let reqwest_client = create_client()?;
-
-    let app_state = AppState {
-        client: reqwest_client,
-    };
-
+pub fn app(state: AppState) -> Result<Router, InitializeAppError> {
     let router = Router::new()
         .route("/random_number", routing::get(handlers::random_number::get))
         .route("/error_test", routing::get(handlers::error_test::get))
@@ -44,7 +37,6 @@ fn app() -> Result<Router, InitializeAppError> {
                 .allow_origin(Any),
         )
         .layer(
-            // Let's create a tracing span for each request
             TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
                 // Log the matched route's path (with placeholders not filled in).
                 // Use request.uri() or OriginalUri if you want the real path.
@@ -68,25 +60,14 @@ fn app() -> Result<Router, InitializeAppError> {
             }),
         )
         .layer(RequestIdLayer)
-        .with_state(app_state)
+        .with_state(state)
         // Omit these from the logs etc.
         .route("/__healthcheck", routing::get(handlers::healthcheck::get));
 
     Ok(router)
 }
 
-#[derive(Debug)]
-pub struct InitializeAppError;
-
-impl std::fmt::Display for InitializeAppError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Failed to initialize app")
-    }
-}
-
-impl Context for InitializeAppError {}
-
-pub async fn run(std_listener: TcpListener) -> Result<(), InitializeAppError> {
+async fn run(app: Router, std_listener: TcpListener) -> Result<(), InitializeAppError> {
     let addr = std_listener
         .local_addr()
         .change_context(InitializeAppError)?;
@@ -99,7 +80,7 @@ pub async fn run(std_listener: TcpListener) -> Result<(), InitializeAppError> {
 
     tracing::info!("Listening on {}", addr);
 
-    let app = app()?;
+    // let app = app()?;
     axum::serve(listener, app)
         // axum::Server::from_tcp(listener)?
         //     .serve(app().into_make_service())
@@ -114,7 +95,31 @@ pub async fn run(std_listener: TcpListener) -> Result<(), InitializeAppError> {
     Ok(())
 }
 
-// test helpers
+pub fn create_client() -> Result<Client, InitializeAppError> {
+    Client::builder()
+        .default_headers({
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert(reqwest::header::USER_AGENT, "PKG_NAME".parse().unwrap());
+
+            headers
+        })
+        .pool_idle_timeout(Duration::from_secs(15))
+        .pool_max_idle_per_host(10)
+        .build()
+        .change_context(InitializeAppError)
+}
+
+#[cfg(not(test))]
+pub async fn spawn_app(listener: TcpListener) -> Result<(), InitializeAppError> {
+    let state = AppState::default();
+
+    let app = app(state)?;
+    run(app, listener).await?;
+
+    Ok(())
+}
+
+// #[cfg(test)]
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_filter_level = "info".to_string();
     let subscriber_name = "test".to_string();
@@ -129,28 +134,25 @@ static TRACING: Lazy<()> = Lazy::new(|| {
         telemetry::init_subscriber(subscriber);
     }
 });
-
-pub fn spawn_app() -> SocketAddr {
+// #[cfg(test)]
+pub fn spawn_test_app(state: AppState) -> SocketAddr {
     Lazy::force(&TRACING);
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("To bind to random port");
     let addr = listener.local_addr().expect("To get local address");
 
-    tokio::spawn(run(listener));
+    tokio::spawn(run(app(state).unwrap(), listener));
 
     addr
 }
 
-fn create_client() -> Result<Client, InitializeAppError> {
-    Client::builder()
-        .default_headers({
-            let mut headers = reqwest::header::HeaderMap::new();
-            headers.insert(reqwest::header::USER_AGENT, "PKG_NAME".parse().unwrap());
+#[derive(Debug)]
+pub struct InitializeAppError;
 
-            headers
-        })
-        .pool_idle_timeout(Duration::from_secs(15))
-        .pool_max_idle_per_host(10)
-        .build()
-        .change_context(InitializeAppError)
+impl std::fmt::Display for InitializeAppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Failed to initialize app")
+    }
 }
+
+impl Context for InitializeAppError {}

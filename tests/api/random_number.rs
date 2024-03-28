@@ -4,7 +4,8 @@ use PKG_NAME::*;
 
 #[tokio::test]
 async fn healthcheck_works() {
-    let addr = spawn_app();
+    let state = AppState::default();
+    let addr = spawn_test_app(state);
 
     let response = reqwest::get(format!("http://{addr}/random_number"))
         .await
