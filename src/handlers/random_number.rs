@@ -12,9 +12,10 @@ pub async fn get(
 ) -> Result<impl IntoResponse, AppError> {
     let number = service.get_random_number().await?;
 
-    tracing::info!("External number fetched: {}", number);
-
-    Ok((number * 100).to_string())
+    number
+        .checked_mul(100)
+        .map(|n| n.to_string())
+        .ok_or(AppError::server_error())
 }
 
 #[derive(Debug)]
