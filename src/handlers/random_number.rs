@@ -12,6 +12,8 @@ pub async fn get(
 ) -> Result<impl IntoResponse, AppError> {
     let number = service.get_random_number().await?;
 
+    tracing::info!("Got random number: {}", number);
+
     number
         .checked_mul(100)
         .map(|n| n.to_string())

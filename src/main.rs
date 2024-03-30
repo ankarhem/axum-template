@@ -3,7 +3,8 @@ use PKG_NAME::{app, telemetry};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let subscriber = telemetry::get_subscriber("PKG_NAME".into(), "debug".into(), std::io::stdout);
+    let subscriber =
+        telemetry::get_subscriber("PKG_NAME".into(), "debug,h2=warn".into(), std::io::stdout);
     telemetry::init_subscriber(subscriber);
 
     let port = std::env::var("PORT").unwrap_or("3000".to_string());

@@ -1,5 +1,7 @@
+use opentelemetry::{Key, KeyValue};
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::{trace, Resource};
 use tracing::{subscriber::set_global_default, Subscriber};
-use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt, EnvFilter, Registry};
 
 pub fn get_subscriber<Sink>(
@@ -13,12 +15,43 @@ where
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
 
-    let formatting_layer = BunyanFormattingLayer::new(name, sink);
+    let fmt_layer = tracing_subscriber::fmt::layer();
+
+    let endpoint = "http://192.168.1.148:4317".to_string();
+    let resource_map = Resource::new(vec![KeyValue::new("service.name", name)]);
+
+    let tracer = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_trace_config(trace::config().with_resource(resource_map))
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .tonic()
+                .with_endpoint(&endpoint)
+                .with_protocol(opentelemetry_otlp::Protocol::HttpBinary),
+        )
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
+        .expect("Couldn't create OTLP tracer");
+
+    let meter = opentelemetry_otlp::new_pipeline()
+        .metrics(opentelemetry_sdk::runtime::Tokio)
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .tonic()
+                .with_endpoint(&endpoint)
+                .with_protocol(opentelemetry_otlp::Protocol::HttpBinary),
+        )
+        .with_resource(Resource::new(vec![KeyValue::new(
+            "service.name",
+            "example",
+        )]))
+        .build();
+
+    let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
 
     Registry::default()
         .with(env_filter)
-        .with(JsonStorageLayer)
-        .with(formatting_layer)
+        .with(fmt_layer)
+        .with(telemetry_layer)
 }
 
 pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
