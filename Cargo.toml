@@ -14,7 +14,6 @@ error-stack = { version = "0.4.1", features = ["serde", "spantrace"] }
 mockall = "0.12.1"
 once_cell = "1.18.0"
 opentelemetry = "0.22.0"
-opentelemetry-http = { version = "0.11.1", features = ["reqwest", "tokio"] }
 opentelemetry-otlp = { version = "0.15.0", features = ["metrics"] }
 opentelemetry_sdk = { version = "0.22.1", features = ["rt-tokio"] }
 reqwest = { version = "0.12.2", features = ["json"] }
