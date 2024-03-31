@@ -54,7 +54,7 @@ impl AppError {
 // and convert to a 500 Internal Server Error
 impl<C> From<error_stack::Report<C>> for AppError {
     fn from(err: error_stack::Report<C>) -> Self {
-        tracing::error!("{:?}", err);
+        tracing::event!(tracing::Level::ERROR, stack = ?err, "{:}", err);
         Self::server_error()
     }
 }

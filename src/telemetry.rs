@@ -1,4 +1,4 @@
-use opentelemetry::{Key, KeyValue};
+use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{trace, Resource};
 use tracing::{subscriber::set_global_default, Subscriber};
@@ -18,7 +18,7 @@ where
     let fmt_layer = tracing_subscriber::fmt::layer();
 
     let endpoint = "http://192.168.1.148:4317".to_string();
-    let resource_map = Resource::new(vec![KeyValue::new("service.name", name)]);
+    let resource_map = Resource::new(vec![KeyValue::new("service.name", name.clone())]);
 
     let tracer = opentelemetry_otlp::new_pipeline()
         .tracing()
@@ -31,20 +31,6 @@ where
         )
         .install_batch(opentelemetry_sdk::runtime::Tokio)
         .expect("Couldn't create OTLP tracer");
-
-    let meter = opentelemetry_otlp::new_pipeline()
-        .metrics(opentelemetry_sdk::runtime::Tokio)
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint(&endpoint)
-                .with_protocol(opentelemetry_otlp::Protocol::HttpBinary),
-        )
-        .with_resource(Resource::new(vec![KeyValue::new(
-            "service.name",
-            "example",
-        )]))
-        .build();
 
     let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
 

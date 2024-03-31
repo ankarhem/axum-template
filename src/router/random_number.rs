@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{clients::RandomNumberService, prelude::*};
 
 use axum::{extract::State, response::IntoResponse};
-use error_stack::Context;
+use error_stack::{Context, ResultExt};
 
 #[tracing::instrument(skip(service), name = "random_number")]
 // #[axum::debug_handler]
@@ -14,10 +14,11 @@ pub async fn get(
 
     tracing::info!("Got random number: {}", number);
 
-    number
+    Ok(number
         .checked_mul(100)
         .map(|n| n.to_string())
-        .ok_or(AppError::server_error())
+        .ok_or(GetRandomNumberError)
+        .attach_printable("multiplication overflow")?)
 }
 
 #[derive(Debug)]
