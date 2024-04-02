@@ -34,9 +34,12 @@ where
 
     let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
 
+    let error_layer = tracing_error::ErrorLayer::default();
+
     Registry::default()
         .with(env_filter)
         .with(fmt_layer)
+        .with(error_layer)
         .with(telemetry_layer)
 }
 

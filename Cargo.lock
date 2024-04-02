@@ -22,6 +22,7 @@ dependencies = [
  "tower-http",
  "tower-request-id",
  "tracing",
+ "tracing-error",
  "tracing-opentelemetry",
  "tracing-subscriber",
 ]
