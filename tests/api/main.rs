@@ -5,7 +5,7 @@ mod helpers {
     use once_cell::sync::Lazy;
     use std::net::SocketAddr;
     use PKG_NAME::{
-        configuration::{get_configuration, Settings},
+        configuration::get_configuration,
         telemetry::{get_subscriber, init_subscriber},
         AppState,
     };
@@ -13,11 +13,22 @@ mod helpers {
     static TRACING: Lazy<()> = Lazy::new(|| {
         let default_filter_level = "info".to_string();
         let subscriber_name = "test".to_string();
+        let config = get_configuration().expect("Failed to read configuration.");
         if std::env::var("TEST_LOG").is_ok() {
-            let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
+            let subscriber = get_subscriber(
+                subscriber_name,
+                default_filter_level,
+                &config.telemetry,
+                std::io::stdout,
+            );
             init_subscriber(subscriber);
         } else {
-            let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::sink);
+            let subscriber = get_subscriber(
+                subscriber_name,
+                default_filter_level,
+                &config.telemetry,
+                std::io::sink,
+            );
             init_subscriber(subscriber);
         };
     });
@@ -31,11 +42,11 @@ mod helpers {
         pub async fn spawn(state: AppState) -> Self {
             Lazy::force(&TRACING);
 
-            let mut settings = get_configuration().expect("Failed to read configuration.");
-            settings.application.port = 0;
+            let mut config = get_configuration().expect("Failed to read configuration.");
+            config.application.port = 0;
 
-            let application = PKG_NAME::Application::build(settings, state)
-                .expect("Failed to build application.");
+            let application =
+                PKG_NAME::Application::build(config, state).expect("Failed to build application.");
 
             let addr = application.addr().expect("Failed to get address.");
 

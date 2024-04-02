@@ -2,14 +2,19 @@ use PKG_NAME::{configuration::get_configuration, telemetry, AppState, Applicatio
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let subscriber =
-        telemetry::get_subscriber("PKG_NAME".into(), "debug,h2=warn".into(), std::io::stdout);
+    let config = get_configuration()?;
+
+    let subscriber = telemetry::get_subscriber(
+        "PKG_NAME".into(),
+        "debug,h2=warn".into(),
+        &config.telemetry,
+        std::io::stdout,
+    );
     telemetry::init_subscriber(subscriber);
 
-    let settings = get_configuration()?;
     let state = AppState::new()?;
 
-    Application::build(settings, state)?
+    Application::build(config, state)?
         .run_until_stopped()
         .await?;
 

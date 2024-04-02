@@ -4,9 +4,12 @@ use opentelemetry_sdk::{trace, Resource};
 use tracing::{subscriber::set_global_default, Subscriber};
 use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt, EnvFilter, Registry};
 
+use crate::configuration::TelemetrySettings;
+
 pub fn get_subscriber<Sink>(
     name: String,
     env_filter: String,
+    config: &TelemetrySettings,
     sink: Sink,
 ) -> impl Subscriber + Send + Sync
 where
@@ -17,7 +20,7 @@ where
 
     let fmt_layer = tracing_subscriber::fmt::layer();
 
-    let endpoint = "http://192.168.1.148:4317".to_string();
+    let endpoint = &config.endpoint;
     let resource_map = Resource::new(vec![KeyValue::new("service.name", name.clone())]);
 
     let tracer = opentelemetry_otlp::new_pipeline()
@@ -26,7 +29,7 @@ where
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 .tonic()
-                .with_endpoint(&endpoint)
+                .with_endpoint(endpoint)
                 .with_protocol(opentelemetry_otlp::Protocol::HttpBinary),
         )
         .install_batch(opentelemetry_sdk::runtime::Tokio)
