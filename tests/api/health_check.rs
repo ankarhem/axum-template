@@ -2,14 +2,14 @@ use reqwest::StatusCode;
 
 use PKG_NAME::*;
 
-#[tokio::test]
-async fn real_works() {
-    let state = AppState::default();
-    let addr = spawn_test_app(state);
+use crate::helpers::TestApp;
 
-    let response = reqwest::get(format!("http://{addr}/__healthcheck"))
-        .await
-        .unwrap();
+#[tokio::test]
+async fn healthcheck_works() {
+    let state = AppState::new().unwrap();
+    let app = TestApp::spawn(state).await;
+
+    let response = app.get_healthcheck().await;
 
     assert_eq!(response.status(), StatusCode::OK);
 }

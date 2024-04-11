@@ -1,0 +1,6 @@
+[application]
+host = "127.0.0.1"
+
+
+[telemetry]
+endpoint = "http://192.168.1.148:4317"
