@@ -8,7 +8,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "PKG_NAME".into(),
         "debug,h2=warn".into(),
         &config.telemetry,
-        std::io::stdout,
     );
     telemetry::init_subscriber(subscriber);
 
